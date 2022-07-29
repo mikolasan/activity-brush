@@ -3,6 +3,7 @@ use chrono::{Datelike, NaiveDate, NaiveDateTime, Duration};
 use cairo::{Format,
   FontExtents, 
   TextExtents, 
+  Surface,
   ffi::{cairo_move_to, 
     cairo_show_text, 
     cairo_image_surface_create, 
@@ -13,8 +14,9 @@ use cairo::{Format,
     cairo_text_extents,
     FONT_SLANT_NORMAL,
     FONT_WEIGHT_BOLD, cairo_surface_t,
-  }, ImageSurface
-  
+  },
+  ImageSurface, 
+  ImageSurfaceData,  
 };
 
 // https://doc.rust-lang.org/book/ch03-05-control-flow.html
@@ -25,21 +27,11 @@ fn text_to_dots(text: String) -> Vec<[u8; 7]> {
     // load font
 
     // use font to render a text -> picture
-    let surface = text_to_surface(text);
-    let result = unsafe {ImageSurface::from_raw_full(surface)};
-    if result.is_ok() {
-      let mut image = result.expect("image surface wow");
-      let image_result = image.data();
-      if image_result.is_ok() {
-        let data = image_result.expect("data is there");
-        println!("image surface length {}", data.len());
-      } else {
-        let e = image_result.expect_err("borrow error then");
-        println!("no data in the surface: {}", e.to_string());
-      }
-    } else {
-      println!("image surface is not created");
-    }
+    let mut image = text_to_surface(text);
+    let data = image.data().unwrap_or_else(|error| {
+      panic!("no data in the surface: {}", error.to_string());
+    });
+    println!("image surface length {}", data.len());
 
     // on a matrix highlight cells (dots) that correspond to the outlines
     // in other words: picture to matrix
@@ -145,14 +137,21 @@ fn text_to_png(text: String) {
   save_surface_as_png(surface);
 }
 
-fn text_to_surface(text: String) -> *mut cairo_surface_t {
+fn text_to_surface(text: String) -> ImageSurface {
   // output size
   let width = 1024;
   let height = 768;
   
-  let surface = unsafe {cairo_image_surface_create(
+  let surface_ptr = unsafe {cairo_image_surface_create(
     i32::from(Format::ARgb32), width, height)};
-  let context = unsafe {cairo_create(surface)};
+  let surface: ImageSurface = unsafe {ImageSurface::from_raw_borrow(surface_ptr)};
+
+  // let surface = if surface_ptr.is_null() {
+  //   None
+  // } else {
+  //   Some(surface_ptr as *mut cairo_surface_t)
+  // };
+  let context = unsafe {cairo_create(surface_ptr)};
 
   let font_family = b"Source Code Pro\0".as_ptr();
   unsafe {cairo_select_font_face(context, font_family as *const i8,
@@ -180,19 +179,9 @@ fn text_to_surface(text: String) -> *mut cairo_surface_t {
   surface
 }
 
-fn save_surface_as_png(surface: *mut cairo_surface_t) {
-  let result = unsafe {ImageSurface::from_raw_full(surface)};
-  if result.is_ok() {
-    let image = result.expect("image surface wow");
-    let file_result = File::create("text.png");
-    if file_result.is_ok() {
-      let mut file = file_result.expect("file is open");
-      let write_result = image.write_to_png(&mut file);
-      if write_result.is_err() {
-        write_result.err();
-      }
-    }
-  }
+fn save_surface_as_png(surface: ImageSurface) {
+  let mut file = File::create("text.png").unwrap();
+  surface.write_to_png(&mut file).unwrap();
 }
 
 fn test_cairo() {
