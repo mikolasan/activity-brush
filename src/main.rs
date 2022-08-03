@@ -1,4 +1,11 @@
+use std::{fs};
 use std::fs::File;
+use std::env;
+use std::path::Path;
+
+use std::process::Command;
+use regex::Regex;
+
 use chrono::{Datelike, NaiveDate, NaiveDateTime, Duration};
 use cairo::{Format,
   FontExtents, 
@@ -130,8 +137,74 @@ fn print_dates(dates: &Vec<[Option<NaiveDateTime>; 7]>) {
   }
 }
 
-fn dates_to_commits() {
-    
+#[derive(PartialEq, Default, Clone, Debug)]
+struct Commit {
+    hash: String,
+    message: String,
+}
+
+fn dates_to_commits(dates: Vec<[Option<NaiveDateTime>; 7]>) {
+  // make temp dir
+  let git_repo_dir = "temp_git";
+  let root = Path::new(git_repo_dir);
+  let metadata = fs::metadata(root);
+  match metadata {
+      Ok(metadata) => {
+        if metadata.is_dir() {
+          println!("Removing directory {}...", root.to_str().unwrap());
+          fs::remove_dir(root);
+        }
+      }
+      Err(error) => {
+        println!("If directory does not exist, then it's perfect!");
+        println!("{error}");
+      }
+  }
+  fs::create_dir(root).unwrap_or_else(|error| {
+    println!("Git magic has not been created");
+    panic!("{error}");
+
+  });
+
+  assert!(env::set_current_dir(&root).is_ok());
+  println!("Successfully changed working directory to {}!", root.display());
+
+  let output = Command::new("git").arg("init").output().unwrap();
+  if !output.status.success() {
+    println!("Command executed with failing error code");
+  }
+
+  // let pattern = Regex::new(r"(?x)
+  //                             ([0-9a-fA-F]+) # commit hash
+  //                             (.*)           # The commit message")?;
+
+  // String::from_utf8(output.stdout)?
+  //     .lines()
+  //     .filter_map(|line| pattern.captures(line))
+  //     .map(|cap| {
+  //               Commit {
+  //                   hash: cap[1].to_string(),
+  //                   message: cap[2].trim().to_string(),
+  //               }
+  //           })
+  //     .take(5)
+  //     .for_each(|x| println!("{:?}", x));
+
+  // Ok(())
+  // // init git
+
+  // for week_day in 0..7 {
+  //   let mut column = 0;
+  //   while column < dates.len() {
+  //     let i = dates[column][week_day];
+  //     if i.is_some() {
+  //       // create commit
+  //       // print!("{} ", i.expect("date is ok").format("%Y-%m-%d").to_string());
+
+  //     }
+  //     column +=1;
+  //   }
+  // }
 }
 
 // Convert tutorial from C to Rust
@@ -277,6 +350,8 @@ fn main() {
   let start_date = NaiveDate::from_ymd(2022, 02, 27);
   println!("start date: {}", start_date.format("%Y-%m-%d").to_string());
   let dates = dots_to_dates(start_date, dots);
-  print_dates(dates);
+  print_dates(&dates);
+
+  dates_to_commits(dates);
 
 }
