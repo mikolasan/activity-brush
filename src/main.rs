@@ -26,108 +26,108 @@ use cairo::{Format,
 // create commits by specifing dates https://stackoverflow.com/questions/454734/how-can-one-change-the-timestamp-of-an-old-commit-in-git
 
 fn text_to_dots(text: String) -> Vec<[u8; 7]> {
-    // use font to render a text -> picture
-    let mut surface = text_to_surface(text);
-    let width: usize = surface.width() as usize;
-    let height: usize = surface.height() as usize;
-    save_surface_as_png(&surface);
-    // println!("reference counter z {}", unsafe {cairo_surface_get_reference_count(surface.to_raw_none())});
-    let data = surface.data().unwrap_or_else(|error| {
-      panic!("no data in the surface: {}", error.to_string());
-    });
-    // println!("image data length {}", data.len());
-    // for y in 0..height {
-    //     for x in 0..width {
-    //       // print!("{}", x * 4 + y * width * 4);
-    //       let r = data[x * 4 + y * width * 4];
-    //       let g = data[x * 4 + y * width * 4 + 1];
-    //       let b = data[x * 4 + y * width * 4 + 2];
-    //       let a = data[x * 4 + y * width * 4 + 3];
-    //       print!("{}", if r > 0 || g > 0 || b > 0 || a > 0 {"X"} else {"_"});
-    //   }
-    //   println!("");
-    // }
+  // use font to render a text -> picture
+  let mut surface = text_to_surface(text);
+  let width: usize = surface.width() as usize;
+  let height: usize = surface.height() as usize;
+  save_surface_as_png(&surface);
+  // println!("reference counter z {}", unsafe {cairo_surface_get_reference_count(surface.to_raw_none())});
+  let data = surface.data().unwrap_or_else(|error| {
+    panic!("no data in the surface: {}", error.to_string());
+  });
+  // println!("image data length {}", data.len());
+  // for y in 0..height {
+  //     for x in 0..width {
+  //       // print!("{}", x * 4 + y * width * 4);
+  //       let r = data[x * 4 + y * width * 4];
+  //       let g = data[x * 4 + y * width * 4 + 1];
+  //       let b = data[x * 4 + y * width * 4 + 2];
+  //       let a = data[x * 4 + y * width * 4 + 3];
+  //       print!("{}", if r > 0 || g > 0 || b > 0 || a > 0 {"X"} else {"_"});
+  //   }
+  //   println!("");
+  // }
 
-    // on a matrix highlight cells (dots) that correspond to the outlines
-    // in other words: picture to matrix
-    let mut dots = Vec::new();
+  // on a matrix highlight cells (dots) that correspond to the outlines
+  // in other words: picture to matrix
+  let mut dots = Vec::new();
 
-    let threshold = 30.0;
-    let box_size = height / 7;
-    println!("box size {box_size}");
-    for i_x in 0..(width / box_size) {
-      let mut week: [u8; 7] = [0; 7];
-      for i_y in 0..(height / box_size) {
-        let mut total_box_color: u64 = 0;
-        for y in i_y * box_size..(i_y + 1) * box_size{
-          for x in i_x * box_size..(i_x + 1) * box_size {
-            // print!("{}", x * 4 + y * width * 4);
-            let r = data[x * 4 + y * width * 4];
-            let g = data[x * 4 + y * width * 4 + 1];
-            let b = data[x * 4 + y * width * 4 + 2];
-            let a = data[x * 4 + y * width * 4 + 3];
-            total_box_color += (r + g + b + a) as u64
-          }
+  let threshold = 30.0;
+  let box_size = height / 7;
+  println!("box size {box_size}");
+  for i_x in 0..(width / box_size) {
+    let mut week: [u8; 7] = [0; 7];
+    for i_y in 0..(height / box_size) {
+      let mut total_box_color: u64 = 0;
+      for y in i_y * box_size..(i_y + 1) * box_size{
+        for x in i_x * box_size..(i_x + 1) * box_size {
+          // print!("{}", x * 4 + y * width * 4);
+          let r = data[x * 4 + y * width * 4];
+          let g = data[x * 4 + y * width * 4 + 1];
+          let b = data[x * 4 + y * width * 4 + 2];
+          let a = data[x * 4 + y * width * 4 + 3];
+          total_box_color += (r + g + b + a) as u64
         }
-        // print!(" {} ", if total_box_color as f64 / (4 * box_size * box_size) as f64 > 1.0 {"X"} else {"_"});
-        // print!("{}", if total_box_color as f64 / (4 * box_size * box_size) as f64 > threshold {"X"} else {"_"});
-        let busy_day = if total_box_color as f64 / (4 * box_size * box_size) as f64 > threshold {1} else {0};
-        week[i_y] = busy_day;
       }
-      // println!("");
-      dots.push(week);
+      // print!(" {} ", if total_box_color as f64 / (4 * box_size * box_size) as f64 > 1.0 {"X"} else {"_"});
+      // print!("{}", if total_box_color as f64 / (4 * box_size * box_size) as f64 > threshold {"X"} else {"_"});
+      let busy_day = if total_box_color as f64 / (4 * box_size * box_size) as f64 > threshold {1} else {0};
+      week[i_y] = busy_day;
     }
+    // println!("");
+    dots.push(week);
+  }
 
-    dots
+  dots
 }
 
 fn dots_to_dates(start_date: NaiveDate, dots: Vec<[u8; 7]>) -> Vec<[Option<NaiveDateTime>; 7]> {
-    let mut dates = Vec::new();
-    
-    let mut column: usize = 0;
-    while column < dots.len() {
-        let mut week: [Option<NaiveDateTime>; 7] = [None; 7];
-        for week_day in 0..7 {
-            let i: usize = week_day;
-            if dots[column][i] > 0 {
-                let days: i64 = (i + 7 * column).try_into().unwrap();
-                let duration = Duration::days(days);
-                let date: NaiveDate = start_date + duration;
-                week[i] = Some(date.and_hms(9, 10, 11));
-            }
-        }
-        dates.push(week);
-        column += 1;
+  let mut dates = Vec::new();
+  
+  let mut column: usize = 0;
+  while column < dots.len() {
+    let mut week: [Option<NaiveDateTime>; 7] = [None; 7];
+    for week_day in 0..7 {
+      let i: usize = week_day;
+      if dots[column][i] > 0 {
+        let days: i64 = (i + 7 * column).try_into().unwrap();
+        let duration = Duration::days(days);
+        let date: NaiveDate = start_date + duration;
+        week[i] = Some(date.and_hms(9, 10, 11));
+      }
     }
-    dates
+    dates.push(week);
+    column += 1;
+  }
+  dates
 }
 
 fn print_dots(dots: &Vec<[u8; 7]>) {
-    for week_day in 0..7 {
-        let mut column = 0;
-        while column < dots.len() {
-            let i = dots[column][week_day];
-            print!("{i}");
-            column +=1;
-        }
-        println!("");
+  for week_day in 0..7 {
+    let mut column = 0;
+    while column < dots.len() {
+      let i = dots[column][week_day];
+      print!("{i}");
+      column +=1;
     }
+    println!("");
+  }
 }
 
-fn print_dates(dates: Vec<[Option<NaiveDateTime>; 7]>) {
-    for week_day in 0..7 {
-        let mut column = 0;
-        while column < dates.len() {
-            let i = dates[column][week_day];
-            if i.is_some() {
-                print!("{} ", i.expect("date is ok").format("%Y-%m-%d").to_string());
-            } else {
-                print!("xxxx-xx-xx ");
-            }
-            column +=1;
-        }
-        println!("");
+fn print_dates(dates: &Vec<[Option<NaiveDateTime>; 7]>) {
+  for week_day in 0..7 {
+    let mut column = 0;
+    while column < dates.len() {
+      let i = dates[column][week_day];
+      if i.is_some() {
+        print!("{} ", i.expect("date is ok").format("%Y-%m-%d").to_string());
+      } else {
+        print!("xxxx-xx-xx ");
+      }
+      column +=1;
     }
+    println!("");
+  }
 }
 
 fn dates_to_commits() {
