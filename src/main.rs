@@ -1,8 +1,7 @@
 use std::{fs};
 use std::fs::File;
-use std::io::Error;
+use std::io::{self, Write, Error, ErrorKind};
 use std::io::Result;
-use std::io;
 use std::env;
 use std::path::Path;
 use std::process::Command;
@@ -155,12 +154,12 @@ fn make_git_repo(dir_name: &str) -> Result<()> {
 }
 
 fn directory_exists(path: &Path) -> Result<bool> {
-  let metadata = fs::metadata(path)
-    .or_else(|e| {
-      println!("no metadata, means no directory");
-      Err(e)
-    })?;
-  Ok(metadata.is_dir())
+  let result = fs::metadata(path).map(|metadata| metadata.is_dir());
+  if result.is_err() {
+    println!("no metadata, means no directory");
+    return Ok(false);
+  }
+  result
 }
 
 fn ask_for_confirmation(prompt: &String) -> Result<bool> {
@@ -170,21 +169,69 @@ fn ask_for_confirmation(prompt: &String) -> Result<bool> {
     .read_line(&mut input)
     .map(|_| input.trim_end())?;
 
-  if confirmation == "Y" {
-    return Ok(true);
-  } else if confirmation != "N" {
-    println!("You must print 'Y' or 'N' only!\nI'll ask again...");
-    return ask_for_confirmation(prompt);
+  let answer = match confirmation {
+    "Y" => true,
+    "N" => false,
+    _ => {
+      println!("You must print 'Y' or 'N' only!\nI'll ask again...");
+      return ask_for_confirmation(prompt);
+    }
+  };
+  Ok(answer)
+}
+
+fn git_init() -> Result<()> {
+  let output = Command::new("git")
+    .arg("init")
+    .output()?;
+  if !output.status.success() {
+    // println!("{}", output.stderr);
+    io::stderr().write_all(&output.stderr)?;
+    return Err(Error::new(ErrorKind::Other, "git init failed"));
   }
-  Ok(false)
+  println!("git initialized");
+  Ok(())
+}
+
+fn git_add(path: &Path) -> Result<()> {
+  let output = Command::new("git")
+    .arg("add")
+    .arg(path.display().to_string())
+    .output()?;
+  if !output.status.success() {
+    // println!("{}", output.stderr);
+    io::stderr().write_all(&output.stderr)?;
+    return Err(Error::new(ErrorKind::Other, "git add failed"));
+  }
+  println!("file added to tracked files");
+  Ok(())
+}
+
+fn git_commit(i: usize, date: &String) -> Result<()> {
+  // GIT_COMMITTER_DATE="2017-10-08T09:51:07" git commit --all --message="commit 1" --date="2017-10-08T09:51:07"
+  env::set_var("GIT_COMMITTER_DATE", format!("{date}T09:51:07"));
+  let output = Command::new("git")
+    .arg("commit")
+    .arg("--all")
+    .arg(format!("--message=\"commit {i}\""))
+    .arg(format!("--date=\"{date}T09:51:07\""))
+    .arg("--author=\"Nikolay Neupokoev <ne.nikolay@yandex.com>\"")
+    .output()?;
+  if !output.status.success() {
+    // println!("{}", output.stderr);
+    io::stderr().write_all(&output.stderr)?;
+    return Err(Error::new(ErrorKind::Other, "git commit failed"));
+  }
+  println!("commited {i} {date}");
+  Ok(())
 }
 
 fn dates_to_commits(dates: Vec<[Option<NaiveDateTime>; 7]>) -> Result<()> {
   // make temp dir
-  let dir_name = "temp_git";
-  let repo_root = Path::new(dir_name);
+  let git_repo_dir = "temp_git";
+  let repo_root = Path::new(git_repo_dir);
   if directory_exists(repo_root)? {
-    let prompt = format!("Do you want do delete '{}' and all its content? (Y/N)", repo_root.to_path_buf().canonicalize().unwrap().to_str().unwrap());
+    let prompt = format!("Do you want do delete '{}' and all its content? (Y/N)", repo_root.display());
     if ask_for_confirmation(&prompt)? {
       match fs::remove_dir_all(repo_root) {
         Ok(_) => println!("Removed!"),
@@ -193,85 +240,45 @@ fn dates_to_commits(dates: Vec<[Option<NaiveDateTime>; 7]>) -> Result<()> {
     } else {
       println!("okay, not deleting this directory")
     }
-  } else {
-    match fs::create_dir(repo_root) {
-      Ok(_) => {},
-      Err(e) => {},
+  }
+  
+  fs::create_dir(repo_root)?;
+  let return_path = env::current_dir()?;
+  env::set_current_dir(&repo_root)?;
+  println!("Changed working directory to {}", repo_root.display());
+  
+  git_init()?;
+  
+  let work_file = "work.txt";
+  let file_path = Path::new(work_file);
+
+  let mut file = File::create(file_path)?;
+  
+  // initial commit
+  git_add(file_path)?;
+  
+  let mut consecutive_counter: usize = 0;
+  for week_day in 0..7 {
+    let mut column = 0;
+    while column < dates.len() {
+      let i = dates[column][week_day];
+      if i.is_some() {
+        // create commit
+        let date = i.expect("date is ok").format("%Y-%m-%d").to_string();
+        file.write_all(date.as_bytes())?;
+        git_commit(consecutive_counter, &date)?;
+        consecutive_counter += 1;
+      }
+      column +=1;
     }
   }
 
+  //  git remote add origin git@github.com:boooobs/test.git
+  //  git push -u --force origin master
+
+  env::set_current_dir(&return_path)?;
+  
   Ok(())
-  // make_git_repo("temp_git")
-  //   .or_else(|err| {
-  //     println!("no folder where to make magic");
-  //     println!("{err}");
-  //     Ok(())
-  //   })
-
-
-  // let git_repo_dir = "temp_git";
-  // let root = Path::new(git_repo_dir);
-  // let metadata = fs::metadata(root)?;
-  // match metadata {
-  //     Ok(metadata) => {
-  //       if metadata.is_dir() {
-  //         println!("Removing directory {}...", root.to_str().unwrap());
-  //         fs::remove_dir(root);
-  //       }
-  //     }
-  //     Err(error) => {
-  //       println!("If directory does not exist, then it's perfect!");
-  //       println!("{error}");
-  //     }
-  // }
-  // fs::create_dir(root).unwrap_or_else(|error| {
-  //   println!("Git magic has not been created");
-  //   panic!("{error}");
-
-  // });
-
-  // assert!(env::set_current_dir(&root).is_ok());
-  // println!("Successfully changed working directory to {}!", root.display());
-
-  //
-  // GIT_COMMITTER_DATE="2017-10-08T09:51:07" git commit --all --message="commit 1" --date="2017-10-08T09:51:07"
-
-  // let output = Command::new("git").arg("init").output().unwrap();
-  // if !output.status.success() {
-  //   println!("Command executed with failing error code");
-  // }
-
-  // let pattern = Regex::new(r"(?x)
-  //                             ([0-9a-fA-F]+) # commit hash
-  //                             (.*)           # The commit message")?;
-
-  // String::from_utf8(output.stdout)?
-  //     .lines()
-  //     .filter_map(|line| pattern.captures(line))
-  //     .map(|cap| {
-  //               Commit {
-  //                   hash: cap[1].to_string(),
-  //                   message: cap[2].trim().to_string(),
-  //               }
-  //           })
-  //     .take(5)
-  //     .for_each(|x| println!("{:?}", x));
-
-  // Ok(())
-  // // init git
-
-  // for week_day in 0..7 {
-  //   let mut column = 0;
-  //   while column < dates.len() {
-  //     let i = dates[column][week_day];
-  //     if i.is_some() {
-  //       // create commit
-  //       // print!("{} ", i.expect("date is ok").format("%Y-%m-%d").to_string());
-
-  //     }
-  //     column +=1;
-  //   }
-  // }
 }
 
 // Convert tutorial from C to Rust
@@ -414,7 +421,7 @@ fn main() {
   let dots = text_to_dots(text);
   print_dots(&dots);
 
-  let start_date = NaiveDate::from_ymd(2022, 02, 27);
+  let start_date = NaiveDate::from_ymd(2021, 09, 21);
   println!("start date: {}", start_date.format("%Y-%m-%d").to_string());
   let dates = dots_to_dates(start_date, dots);
   print_dates(&dates);
