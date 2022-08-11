@@ -8,3 +8,5 @@ edition = "2021"
 [dependencies]
 cairo-rs = { version = "0.15.12", features = ["use_glib", "freetype", "png"] }
 chrono = "0.4.19"
+error-chain = "0.12.4"
+regex = "1.6.0"
