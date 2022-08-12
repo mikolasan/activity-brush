@@ -1,12 +1,10 @@
-use std::{fs};
-use std::fs::File;
-use std::io::{self, Write, Error, ErrorKind};
-use std::io::Result;
+use std::fs::{self, File};
+use std::io::{self, Result, Write, Error, ErrorKind};
 use std::env;
 use std::path::Path;
 use std::process::Command;
 use regex::Regex;
-use chrono::{Datelike, NaiveDate, NaiveDateTime, Duration};
+use chrono::{Datelike, NaiveDate, NaiveDateTime, Duration, Weekday};
 use cairo::{Format,
   FontExtents, 
   TextExtents, 
@@ -323,7 +321,7 @@ fn text_to_png(text: String) {
 
 fn text_to_surface(text: String) -> ImageSurface {
   // output size
-  let width = 250;
+  let width = 450;
   let height = 60;
   
   let surface_ptr = unsafe {cairo_image_surface_create(
@@ -417,11 +415,11 @@ fn test_cairo() {
 }
 
 fn main() {
-  let text: String = "Hello".to_string();
+  let text: String = "CAPPUCCINO!".to_string();
   let dots = text_to_dots(text);
   print_dots(&dots);
 
-  let start_date = NaiveDate::from_ymd(2021, 09, 21);
+  let start_date = NaiveDate::from_weekday_of_month(2021, 08, Weekday::Sun, 2);
   println!("start date: {}", start_date.format("%Y-%m-%d").to_string());
   let dates = dots_to_dates(start_date, dots);
   print_dates(&dates);
