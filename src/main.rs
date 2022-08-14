@@ -98,10 +98,35 @@ fn dots_to_dates(start_date: NaiveDate, dots: Vec<[u8; 7]>) -> Vec<[Option<Naive
         let days: i64 = (i + 7 * column).try_into().unwrap();
         let duration = Duration::days(days);
         let date: NaiveDate = start_date + duration;
-        week[i] = Some(date.and_hms(9, 10, 11));
+        let min: u32 = 10;
+        let sec: u32 = 11;
+        week[i] = Some(date.and_hms(9, min, sec));
       }
     }
     dates.push(week);
+    column += 1;
+  }
+  dates
+}
+
+fn dots_to_dates_flat(start_date: NaiveDate, dots: Vec<[u8; 7]>) -> Vec<NaiveDateTime> {
+  let mut dates = Vec::new();
+  
+  let mut column: usize = 0;
+  while column < dots.len() {
+    for week_day in 0..7 {
+      let i: usize = week_day;
+      if dots[column][i] > 0 {
+        let days: i64 = (i + 7 * column).try_into().unwrap();
+        let duration = Duration::days(days);
+        let date: NaiveDate = start_date + duration;
+        for n in 0..dots[column][i] as u32 {
+          let min: u32 = n / 60;
+          let sec: u32 = n % 60;
+          dates.push(date.and_hms(9, min, sec));
+        }
+      }
+    }
     column += 1;
   }
   dates
@@ -135,27 +160,19 @@ fn print_dates(dates: &Vec<[Option<NaiveDateTime>; 7]>) {
   }
 }
 
-#[derive(PartialEq, Default, Clone, Debug)]
-struct Commit {
-  hash: String,
-  message: String,
-}
-
-fn make_git_repo(dir_name: &str) -> Result<()> {
-  
-  // fs::create_dir(repo_root)?;
-  // let return_path = env::current_dir()?;
-  // env::set_current_dir(&repo_root)?;
-  // Command::new("git").arg("init").output()?;
-  // env::set_current_dir(&return_path)?;
-  Ok(())
-}
-
 fn directory_exists(path: &Path) -> Result<bool> {
   let result = fs::metadata(path).map(|metadata| metadata.is_dir());
-  if result.is_err() {
-    println!("no metadata, means no directory");
-    return Ok(false);
+  if let Err(error) = result {
+    match error.kind() {
+      ErrorKind::NotFound => {
+        println!("no metadata, means no directory");
+        return Ok(false);
+      }
+      _ => {
+        println!("this kind: {}", error.kind());
+        return Err(error);
+      }
+    }
   }
   result
 }
@@ -207,12 +224,12 @@ fn git_add(path: &Path) -> Result<()> {
 
 fn git_commit(i: usize, date: &String) -> Result<()> {
   // GIT_COMMITTER_DATE="2017-10-08T09:51:07" git commit --all --message="commit 1" --date="2017-10-08T09:51:07"
-  env::set_var("GIT_COMMITTER_DATE", format!("{date}T09:51:07"));
+  env::set_var("GIT_COMMITTER_DATE", format!("{date}"));
   let output = Command::new("git")
     .arg("commit")
     .arg("--all")
     .arg(format!("--message=\"commit {i}\""))
-    .arg(format!("--date=\"{date}T09:51:07\""))
+    .arg(format!("--date=\"{date}\""))
     .arg("--author=\"Nikolay Neupokoev <ne.nikolay@yandex.com>\"")
     .output()?;
   if !output.status.success() {
@@ -224,7 +241,7 @@ fn git_commit(i: usize, date: &String) -> Result<()> {
   Ok(())
 }
 
-fn dates_to_commits(dates: Vec<[Option<NaiveDateTime>; 7]>) -> Result<()> {
+fn dates_to_commits<'a>(date_iterator: impl Iterator<Item = &'a NaiveDateTime>) -> Result<()> {
   // make temp dir
   let git_repo_dir = "temp_git";
   let repo_root = Path::new(git_repo_dir);
@@ -256,19 +273,13 @@ fn dates_to_commits(dates: Vec<[Option<NaiveDateTime>; 7]>) -> Result<()> {
   git_add(file_path)?;
   
   let mut consecutive_counter: usize = 0;
-  for week_day in 0..7 {
-    let mut column = 0;
-    while column < dates.len() {
-      let i = dates[column][week_day];
-      if i.is_some() {
-        // create commit
-        let date = i.expect("date is ok").format("%Y-%m-%d").to_string();
-        file.write_all(date.as_bytes())?;
-        git_commit(consecutive_counter, &date)?;
-        consecutive_counter += 1;
-      }
-      column +=1;
-    }
+  for date_time in date_iterator {
+    let date = date_time.format("%Y-%m-%dT%H:%M:%S").to_string();
+
+    file.write_all(date.as_bytes())?;
+    git_commit(consecutive_counter, &date)?;
+    
+    consecutive_counter += 1;
   }
 
   //  git remote add origin git@github.com:boooobs/test.git
@@ -414,17 +425,63 @@ fn test_cairo() {
 
 }
 
+pub type Week<D> = [Option<D>; 7];
+pub type VecOfWeeks<D> = Vec<Week<D>>;
+
+struct VecOfWeeksIter<'a, D> {
+  remaining_weeks: &'a [Week<D>],
+  week_day: usize,
+}
+
+impl<D> Default for VecOfWeeksIter<'_, D> {
+  fn default() -> Self {
+    VecOfWeeksIter {
+      remaining_weeks: &[],
+      week_day: 0,
+    }
+  }
+}
+
+impl<'a, D> Iterator for VecOfWeeksIter<'a, D> {
+  type Item = &'a D;
+
+  fn next(&mut self) -> Option<Self::Item> {
+    let mut value = None;
+    while !value.is_some() && self.remaining_weeks.len() > 0 {
+      value = self.remaining_weeks[0][self.week_day].as_ref();
+    
+      if self.week_day < 7 {
+        self.week_day += 1;
+      } else {
+        self.week_day = 0;
+        self.remaining_weeks = &self.remaining_weeks[1..];
+      }
+    }
+    value
+  }
+}
+
+fn wrap_into_iter<'a>(data: &'a Vec<[Option<NaiveDateTime>; 7]>) -> VecOfWeeksIter<'a, NaiveDateTime> {
+  VecOfWeeksIter {
+    remaining_weeks: &data[..],
+    week_day: 0
+  }
+}
+
 fn main() {
   let text: String = "CAPPUCCINO!".to_string();
   let dots = text_to_dots(text);
-  print_dots(&dots);
+  // print_dots(&dots);
 
   let start_date = NaiveDate::from_weekday_of_month(2021, 08, Weekday::Sun, 2);
   println!("start date: {}", start_date.format("%Y-%m-%d").to_string());
   let dates = dots_to_dates(start_date, dots);
-  print_dates(&dates);
+  let it = wrap_into_iter(&dates);
+  
+  // let dates = dots_to_dates_flat(start_date, dots);
+  // let it = dates.iter();
 
-  match dates_to_commits(dates) {
+  match dates_to_commits(it) {
     Ok(_) => {},
     Err(e) => println!("Error happened in 'dates_to_commits': {e}"),
   }
