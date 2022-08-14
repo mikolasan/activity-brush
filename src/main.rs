@@ -450,9 +450,8 @@ impl<'a, D> Iterator for VecOfWeeksIter<'a, D> {
     while !value.is_some() && self.remaining_weeks.len() > 0 {
       value = self.remaining_weeks[0][self.week_day].as_ref();
     
-      if self.week_day < 7 {
-        self.week_day += 1;
-      } else {
+      self.week_day += 1;
+      if self.week_day >= 7 {
         self.week_day = 0;
         self.remaining_weeks = &self.remaining_weeks[1..];
       }
@@ -461,7 +460,7 @@ impl<'a, D> Iterator for VecOfWeeksIter<'a, D> {
   }
 }
 
-fn wrap_into_iter<'a>(data: &'a Vec<[Option<NaiveDateTime>; 7]>) -> VecOfWeeksIter<'a, NaiveDateTime> {
+fn wrap_into_iter<'a, D>(data: &'a Vec<[Option<D>; 7]>) -> VecOfWeeksIter<'a, D> {
   VecOfWeeksIter {
     remaining_weeks: &data[..],
     week_day: 0
@@ -485,4 +484,18 @@ fn main() {
     Ok(_) => {},
     Err(e) => println!("Error happened in 'dates_to_commits': {e}"),
   }
+}
+
+#[test]
+fn test_borrowing_iterator() {
+  // iterator is not tied to NaiveDateTime, so we will use just numbers in the test ;)
+  let dates = vec![
+    [None; 7],
+    [Some(1), Some(2), Some(3), Some(4), Some(5), Some(6), Some(7)],
+    [Some(8), None, Some(9), None, Some(10), None, Some(11)],
+    [None; 7],
+    [Some(12), Some(13), None, None, None, None, None],
+  ];
+  let numbers: Vec<i32> = wrap_into_iter(&dates).copied().collect();
+  assert_eq!(numbers, vec![1,2,3,4,5,6,7,8,9,10,11,12,13]);
 }
