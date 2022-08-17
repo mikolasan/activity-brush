@@ -9,6 +9,8 @@ use dates::{wrap_into_iter, dots_to_dates};
 mod dots;
 mod git;
 use git::{git_init, git_add, git_commit};
+mod github;
+use github::{prepare_github};
 mod raster;
 use raster::text_to_dots;
 
@@ -97,21 +99,26 @@ fn dates_to_commits<'a>(date_iterator: impl Iterator<Item = &'a NaiveDateTime>) 
   Ok(())
 }
 
+
 fn main() {
-  let text: String = "hello".to_string();
-  let dots = text_to_dots(text);
-  // print_dots(&dots);
-
-  let start_date = NaiveDate::from_weekday_of_month(2021, 08, Weekday::Sun, 2);
-  println!("start date: {}", start_date.format("%Y-%m-%d").to_string());
-  let dates = dots_to_dates(start_date, dots);
-  let it = wrap_into_iter(&dates);
-  
-  // let dates = dots_to_dates_flat(start_date, dots);
-  // let it = dates.iter();
-
-  match dates_to_commits(it) {
+  match prepare_github() {
     Ok(_) => {},
-    Err(e) => println!("Error happened in 'dates_to_commits': {e}"),
+    Err(e) => println!("Error happened in 'auth': {e}"),
   }
+  // let text: String = "hello".to_string();
+  // let dots = text_to_dots(text);
+  // // print_dots(&dots);
+
+  // let start_date = NaiveDate::from_weekday_of_month(2021, 08, Weekday::Sun, 2);
+  // println!("start date: {}", start_date.format("%Y-%m-%d").to_string());
+  // let dates = dots_to_dates(start_date, dots);
+  // let it = wrap_into_iter(&dates);
+  
+  // // let dates = dots_to_dates_flat(start_date, dots);
+  // // let it = dates.iter();
+
+  // match dates_to_commits(it) {
+  //   Ok(_) => {},
+  //   Err(e) => println!("Error happened in 'dates_to_commits': {e}"),
+  // }
 }
