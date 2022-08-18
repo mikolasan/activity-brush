@@ -45,6 +45,7 @@ pub fn wrap_into_iter<'a, D>(data: &'a Vec<[Option<D>; 7]>) -> VecOfWeeksIter<'a
   }
 }
 
+#[allow(dead_code)]
 pub fn dots_to_dates(start_date: NaiveDate, dots: Vec<[u8; 7]>) -> Vec<[Option<NaiveDateTime>; 7]> {
   let mut dates = Vec::new();
   
@@ -69,7 +70,7 @@ pub fn dots_to_dates(start_date: NaiveDate, dots: Vec<[u8; 7]>) -> Vec<[Option<N
 }
 
 #[allow(dead_code)]
-fn dots_to_dates_flat(start_date: NaiveDate, dots: Vec<[u8; 7]>) -> Vec<NaiveDateTime> {
+pub fn dots_to_dates_flat(start_date: NaiveDate, dots: Vec<[u8; 7]>) -> Vec<NaiveDateTime> {
   let mut dates = Vec::new();
   
   let mut column: usize = 0;

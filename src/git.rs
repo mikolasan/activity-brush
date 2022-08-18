@@ -32,21 +32,53 @@ pub fn git_add(path: &Path) -> Result<()> {
   Ok(())
 }
 
-pub fn git_commit(i: usize, date: &String) -> Result<()> {
+pub fn git_commit(commit_message: &String, date: &String, name: &String, email: &String) -> Result<()> {
   // GIT_COMMITTER_DATE="2017-10-08T09:51:07" git commit --all --message="commit 1" --date="2017-10-08T09:51:07"
   env::set_var("GIT_COMMITTER_DATE", format!("{date}"));
   let output = Command::new("git")
     .arg("commit")
     .arg("--all")
-    .arg(format!("--message=\"commit {i}\""))
+    .arg(format!("--message=\"{commit_message}\""))
     .arg(format!("--date=\"{date}\""))
-    .arg("--author=\"Nikolay Neupokoev <ne.nikolay@yandex.com>\"")
+    .arg(format!("--author=\"{name} <{email}>\""))
     .output()?;
   if !output.status.success() {
     // println!("{}", output.stderr);
     io::stderr().write_all(&output.stderr)?;
     return Err(Error::new(ErrorKind::Other, "git commit failed"));
   }
-  println!("commited {i} {date}");
+  println!("commited '{commit_message}' ({date})");
+  Ok(())
+}
+
+pub fn git_remote_add(url: &String) -> Result<()> {
+  let output = Command::new("git")
+    .arg("remote")
+    .arg("add")
+    .arg("origin")
+    .arg(url)
+    .output()?;
+  if !output.status.success() {
+    // println!("{}", output.stderr);
+    io::stderr().write_all(&output.stderr)?;
+    return Err(Error::new(ErrorKind::Other, "git remote failed"));
+  }
+  println!("remote url added");
+  Ok(())
+}
+
+pub fn git_push() -> Result<()> {
+  let output = Command::new("git")
+    .arg("push")
+    .arg("-u")
+    .arg("origin")
+    .arg("master")
+    .output()?;
+  if !output.status.success() {
+    // println!("{}", output.stderr);
+    io::stderr().write_all(&output.stderr)?;
+    return Err(Error::new(ErrorKind::Other, "git push failed"));
+  }
+  println!("pushed!");
   Ok(())
 }
