@@ -1,1 +1,5 @@
 /target
+.cargo
+/temp_git
+text.png
+token.bak

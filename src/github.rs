@@ -234,6 +234,7 @@ pub async fn repo_exists(repo: &String, owner: &String, token: &String) -> Resul
   Ok(response.status() == StatusCode::OK)
 }
 
+// https://docs.github.com/en/rest/repos/repos#create-a-repository-for-the-authenticated-user
 pub async fn create_repo(repo: &String, owner: &String, token: &String) -> Result<String> {
   let input_parameters = json!({
     "name": repo,
